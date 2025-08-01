@@ -1,0 +1,110 @@
+{
+  "images": {
+    "KDEUjTileQolhlJ4hYXEF": {
+      "session_id": "xa_xmbySoeyGLTtnUxqOH",
+      "filename": "img_2025-08-01T05-46-46-087Z.jpg",
+      "original_filename": "blog-e1459012230123-224x300.jpg",
+      "file_path": "/root/synthcollect/data/sessions/xa_xmbySoeyGLTtnUxqOH/images/img_2025-08-01T05-46-46-087Z.jpg",
+      "file_size": 19729,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "test tired not alert",
+      "generator_used": "midjourney",
+      "tags": [],
+      "uploaded_by": "1",
+      "id": "KDEUjTileQolhlJ4hYXEF",
+      "upload_timestamp": "2025-08-01T05:46:46.091Z"
+    },
+    "JcGozY-ap8I-GiQuwYG_9": {
+      "session_id": "xa_xmbySoeyGLTtnUxqOH",
+      "filename": "img_2025-08-01T09-08-23-279Z.webp",
+      "original_filename": "young-woman-drive-car-winter-260nw-1012174234.webp",
+      "file_path": "/root/synthcollect/data/sessions/xa_xmbySoeyGLTtnUxqOH/images/img_2025-08-01T09-08-23-279Z.webp",
+      "file_size": 23666,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "alert test",
+      "generator_used": "midjourney",
+      "tags": [],
+      "uploaded_by": "1",
+      "id": "JcGozY-ap8I-GiQuwYG_9",
+      "upload_timestamp": "2025-08-01T09:08:23.284Z"
+    },
+    "9K1tzaWBBSrIFyY2ANjvY": {
+      "session_id": "xa_xmbySoeyGLTtnUxqOH",
+      "filename": "img_2025-08-01T12-23-37-543Z.jpg",
+      "original_filename": "blog-e1459012230123-224x300.jpg",
+      "file_path": "/root/synthcollect/data/sessions/xa_xmbySoeyGLTtnUxqOH/images/img_2025-08-01T12-23-37-543Z.jpg",
+      "file_size": 19729,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "tired",
+      "generator_used": "midjourney",
+      "tags": [],
+      "quality_rating": 4,
+      "uploaded_by": "1",
+      "id": "9K1tzaWBBSrIFyY2ANjvY",
+      "upload_timestamp": "2025-08-01T12:23:37.561Z",
+      "notes": "",
+      "ai_scores": {}
+    },
+    "KQD1DpODYVKFbauo_CggN": {
+      "session_id": "xa_xmbySoeyGLTtnUxqOH",
+      "filename": "img_2025-08-01T12-26-52-979Z.jpg",
+      "original_filename": "man-drowsy-driving-australia-1280x640.jpg",
+      "file_path": "/root/synthcollect/data/sessions/xa_xmbySoeyGLTtnUxqOH/images/img_2025-08-01T12-26-52-979Z.jpg",
+      "file_size": 47593,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "ewdwef",
+      "generator_used": "midjourney",
+      "tags": [],
+      "quality_rating": 4,
+      "uploaded_by": "1",
+      "id": "KQD1DpODYVKFbauo_CggN",
+      "upload_timestamp": "2025-08-01T12:26:52.982Z"
+    },
+    "bvbaYTTthAgtxGrdl5W5a": {
+      "session_id": "xa_xmbySoeyGLTtnUxqOH",
+      "filename": "img_2025-08-01T12-47-49-919Z.png",
+      "original_filename": "jkn.png",
+      "file_path": "/root/synthcollect/data/sessions/xa_xmbySoeyGLTtnUxqOH/images/img_2025-08-01T12-47-49-919Z.png",
+      "file_size": 120072,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "grgreg",
+      "generator_used": "midjourney",
+      "tags": [],
+      "uploaded_by": "1",
+      "id": "bvbaYTTthAgtxGrdl5W5a",
+      "upload_timestamp": "2025-08-01T12:47:49.925Z"
+    },
+    "bNE32uEpHIfft2At3aceP": {
+      "session_id": "xa_xmbySoeyGLTtnUxqOH",
+      "filename": "img_2025-08-01T14-45-09-385Z.jpg",
+      "original_filename": "man-drowsy-driving-australia-1280x640.jpg",
+      "file_path": "/root/synthcollect/data/sessions/xa_xmbySoeyGLTtnUxqOH/images/img_2025-08-01T14-45-09-385Z.jpg",
+      "file_size": 47593,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "scdsfsdf",
+      "generator_used": "midjourney",
+      "tags": [],
+      "uploaded_by": "1",
+      "id": "bNE32uEpHIfft2At3aceP",
+      "upload_timestamp": "2025-08-01T14:45:09.390Z"
+    }
+  }
+}

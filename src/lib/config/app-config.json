@@ -1,0 +1,17 @@
+{
+  "app": {
+    "name": "SynthCollect",
+    "version": "1.0.0",
+    "description": "AI Training Data Collection System"
+  },
+  "storage": {
+    "maxFileSize": 10485760,
+    "allowedFormats": ["jpg", "jpeg", "png", "webp"],
+    "thumbnailSize": 200,
+    "generateThumbnails": true
+  },
+  "export": {
+    "formats": ["json", "csv", "zip"],
+    "batchSize": 1000
+  }
+}

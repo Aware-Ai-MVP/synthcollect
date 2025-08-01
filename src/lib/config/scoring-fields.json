@@ -1,0 +1,36 @@
+{
+  "fields": [
+    {
+      "name": "alertness_level",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "description": "Level of alertness (0=sleepy, 1=fully alert)",
+      "required": false
+    },
+    {
+      "name": "mood_level",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "description": "Mood assessment (0=negative, 1=positive)",
+      "required": false
+    },
+    {
+      "name": "fatigue_level",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "description": "Fatigue level (0=energized, 1=exhausted)",
+      "required": false
+    },
+    {
+      "name": "confidence",
+      "type": "number",
+      "min": 0,
+      "max": 1,
+      "description": "AI confidence in scores",
+      "required": false
+    }
+  ]
+}
