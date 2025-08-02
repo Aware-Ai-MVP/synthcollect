@@ -20,24 +20,24 @@ interface RouteParams {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { imageId } = await params;
-    
+
     // Get image metadata
     const image = await storage.getImage(imageId);
     if (!image) {
       console.error(`Image metadata not found for ID: ${imageId}`);
       return new NextResponse('Image not found', { status: 404 });
     }
-    
+
     console.log(`Serving image ${imageId}:`, {
       filename: image.filename,
       file_path: image.file_path,
       session_id: image.session_id
     });
-    
-    // Enhanced file path resolution
-    let filePath = image.file_path;
-    let fileBuffer: Buffer;
-    
+
+    // Initialize the fileBuffer and filePath variables
+    const filePath = image.file_path;
+    let fileBuffer: Buffer | undefined; // Use a nullable type
+
     try {
       // First try: Use the path as stored
       await access(filePath);
@@ -45,46 +45,43 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       console.log(`✅ File found at stored path: ${filePath}`);
     } catch (primaryError) {
       console.warn(`❌ File not found at stored path: ${filePath}`);
-      
+
       // Second try: Construct expected path based on session structure
       const expectedPath = path.join(
-        process.cwd(), 
-        'data', 
-        'sessions', 
-        image.session_id, 
-        'images', 
+        process.cwd(),
+        'data',
+        'sessions',
+        image.session_id,
+        'images',
         image.filename
       );
-      
+
       try {
         await access(expectedPath);
         fileBuffer = await readFile(expectedPath);
         console.log(`✅ File found at expected path: ${expectedPath}`);
-        
+
         // Update the stored path to prevent future issues
         await storage.updateImage(imageId, { file_path: expectedPath });
         console.log(`🔧 Updated stored path for image ${imageId}`);
-        
+
       } catch (secondaryError) {
         console.warn(`❌ File not found at expected path: ${expectedPath}`);
-        
+
         // Third try: Search for the file in common locations
         const searchPaths = [
-          // Legacy direct session path
           path.join(process.cwd(), 'data', 'sessions', image.session_id, image.filename),
-          // Root data path
           path.join(process.cwd(), 'data', image.filename),
-          // Alternative relative interpretations
           path.join(process.cwd(), image.file_path.replace(/^\/+/, '')),
         ];
-        
+
         let found = false;
         for (const searchPath of searchPaths) {
           try {
             await access(searchPath);
             fileBuffer = await readFile(searchPath);
             console.log(`✅ File found at search path: ${searchPath}`);
-            
+
             // Update the stored path
             await storage.updateImage(imageId, { file_path: searchPath });
             console.log(`🔧 Updated stored path for image ${imageId} to ${searchPath}`);
@@ -94,7 +91,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             // Continue searching
           }
         }
-        
+
         if (!found) {
           console.error(`❌ Image file completely missing for ${imageId}:`, {
             stored_path: image.file_path,
@@ -103,15 +100,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             filename: image.filename,
             session_id: image.session_id
           });
-          
+
           return new NextResponse(
-            `Image file not found. Searched locations:\n- ${image.file_path}\n- ${expectedPath}\n- ${searchPaths.join('\n- ')}`, 
+            `Image file not found. Searched locations:\n- ${image.file_path}\n- ${expectedPath}\n- ${searchPaths.join('\n- ')}`,
             { status: 404 }
           );
         }
       }
     }
     
+    // Check if fileBuffer was successfully assigned before proceeding
+    if (!fileBuffer) {
+      // This path should ideally not be reached, but it's a final safeguard
+      return new NextResponse('Internal server error: File buffer not loaded', { status: 500 });
+    }
+
     // Determine content type
     const ext = path.extname(image.filename).toLowerCase();
     const contentType = {
@@ -121,7 +124,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       '.webp': 'image/webp',
       '.gif': 'image/gif',
     }[ext] || 'image/jpeg';
-    
+
     // Return image with proper headers
     return new NextResponse(fileBuffer, {
       headers: {
@@ -130,11 +133,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         'Content-Length': fileBuffer.length.toString(),
       },
     });
-    
+
   } catch (error) {
     console.error('Error serving image:', error);
     return new NextResponse(
-      `Server error: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      `Server error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { status: 500 }
     );
   }

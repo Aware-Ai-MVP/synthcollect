@@ -1,5 +1,5 @@
 /**
- * FIXED Complete validation schemas for SynthCollect with file_path
+ * FIXED Complete validation schemas for SynthCollect
  * @filepath src/lib/validations/index.ts
  */
 
@@ -15,12 +15,12 @@ export const SessionSchema = z.object({
 export const ImageUploadSchema = z.object({
   prompt: z.string().min(1).max(1000),
   generator_used: z.enum(['midjourney', 'dalle', 'stable-diffusion', 'other']),
-  generation_settings: z.record(z.any()).optional(),
+  generation_settings: z.record(z.string(), z.any()).optional(),
   user_description: z.string().max(500).optional(),
   tags: z.array(z.string()).default([]),
   quality_rating: z.number().min(1).max(5).optional(),
   notes: z.string().max(1000).optional(),
-  ai_scores: z.record(z.number()).optional().default({}),
+  ai_scores: z.record(z.string(), z.number()).optional().default({}),
 });
 
 // User validation
@@ -30,7 +30,7 @@ export const UserSchema = z.object({
   name: z.string().min(2).max(100),
 });
 
-// **CRITICAL FIX**: Import metadata validation with file_path
+// **CRITICAL FIX**: Import metadata validation with proper types
 export const ImportMetadataSchema = z.object({
   session: z.object({
     name: z.string(),
@@ -40,7 +40,7 @@ export const ImportMetadataSchema = z.object({
   images: z.array(z.object({
     filename: z.string(),
     original_filename: z.string(),
-    file_path: z.string().optional(), // **CRITICAL**: This was missing!
+    file_path: z.string().optional(),
     file_size: z.number(),
     image_dimensions: z.object({
       width: z.number(),
@@ -48,7 +48,7 @@ export const ImportMetadataSchema = z.object({
     }),
     prompt: z.string(),
     generator_used: z.enum(['midjourney', 'dalle', 'stable-diffusion', 'other']),
-    ai_scores: z.record(z.number()).optional(),
+    ai_scores: z.record(z.string(), z.number()).optional(),
     quality_rating: z.number().min(1).max(5).optional(),
     tags: z.array(z.string()).optional(),
     notes: z.string().optional(),
@@ -57,6 +57,8 @@ export const ImportMetadataSchema = z.object({
     uploaded_by: z.string().optional(),
     id: z.string().optional(),
     session_id: z.string().optional(),
+    generation_settings: z.record(z.string(), z.any()).optional(),
+    user_description: z.string().optional(),
   })),
   export_timestamp: z.string(),
   export_version: z.string(),

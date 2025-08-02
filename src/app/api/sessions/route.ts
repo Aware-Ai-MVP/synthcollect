@@ -53,6 +53,9 @@ export async function POST(request: NextRequest) {
       ...validated,
       created_by: session.user.id!,
       status: 'active',
+      // ADD THE MISSING PROPERTIES HERE
+      image_count: 0,
+      export_history: [],
     });
     
     return NextResponse.json<ApiResponse>({

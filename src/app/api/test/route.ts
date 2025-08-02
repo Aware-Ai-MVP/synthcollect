@@ -14,6 +14,9 @@ export async function GET() {
       description: 'Testing storage implementation',
       created_by: 'test-user',
       status: 'active',
+      // ADD THE MISSING PROPERTIES HERE
+      image_count: 0,
+      export_history: [],
     });
     
     return NextResponse.json({
