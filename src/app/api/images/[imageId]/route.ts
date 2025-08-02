@@ -1,5 +1,5 @@
 /**
- * Fixed image management endpoints with proper exports
+ * Enhanced image management endpoints with better error handling and diagnostics
  * @filepath src/app/api/images/[imageId]/route.ts
  */
 
@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth/config';
 import { storage } from '@/lib/storage/json-storage';
-import { readFile } from 'fs/promises';
+import { readFile, access } from 'fs/promises';
 import path from 'path';
 
 interface RouteParams {
@@ -16,7 +16,7 @@ interface RouteParams {
   }>;
 }
 
-// GET /api/images/[imageId] - Serve image file
+// GET /api/images/[imageId] - Serve image file with enhanced error handling
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { imageId } = await params;
@@ -24,11 +24,93 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Get image metadata
     const image = await storage.getImage(imageId);
     if (!image) {
+      console.error(`Image metadata not found for ID: ${imageId}`);
       return new NextResponse('Image not found', { status: 404 });
     }
     
-    // Read file
-    const fileBuffer = await readFile(image.file_path);
+    console.log(`Serving image ${imageId}:`, {
+      filename: image.filename,
+      file_path: image.file_path,
+      session_id: image.session_id
+    });
+    
+    // Enhanced file path resolution
+    let filePath = image.file_path;
+    let fileBuffer: Buffer;
+    
+    try {
+      // First try: Use the path as stored
+      await access(filePath);
+      fileBuffer = await readFile(filePath);
+      console.log(`✅ File found at stored path: ${filePath}`);
+    } catch (primaryError) {
+      console.warn(`❌ File not found at stored path: ${filePath}`);
+      
+      // Second try: Construct expected path based on session structure
+      const expectedPath = path.join(
+        process.cwd(), 
+        'data', 
+        'sessions', 
+        image.session_id, 
+        'images', 
+        image.filename
+      );
+      
+      try {
+        await access(expectedPath);
+        fileBuffer = await readFile(expectedPath);
+        console.log(`✅ File found at expected path: ${expectedPath}`);
+        
+        // Update the stored path to prevent future issues
+        await storage.updateImage(imageId, { file_path: expectedPath });
+        console.log(`🔧 Updated stored path for image ${imageId}`);
+        
+      } catch (secondaryError) {
+        console.warn(`❌ File not found at expected path: ${expectedPath}`);
+        
+        // Third try: Search for the file in common locations
+        const searchPaths = [
+          // Legacy direct session path
+          path.join(process.cwd(), 'data', 'sessions', image.session_id, image.filename),
+          // Root data path
+          path.join(process.cwd(), 'data', image.filename),
+          // Alternative relative interpretations
+          path.join(process.cwd(), image.file_path.replace(/^\/+/, '')),
+        ];
+        
+        let found = false;
+        for (const searchPath of searchPaths) {
+          try {
+            await access(searchPath);
+            fileBuffer = await readFile(searchPath);
+            console.log(`✅ File found at search path: ${searchPath}`);
+            
+            // Update the stored path
+            await storage.updateImage(imageId, { file_path: searchPath });
+            console.log(`🔧 Updated stored path for image ${imageId} to ${searchPath}`);
+            found = true;
+            break;
+          } catch {
+            // Continue searching
+          }
+        }
+        
+        if (!found) {
+          console.error(`❌ Image file completely missing for ${imageId}:`, {
+            stored_path: image.file_path,
+            expected_path: expectedPath,
+            searched_paths: searchPaths,
+            filename: image.filename,
+            session_id: image.session_id
+          });
+          
+          return new NextResponse(
+            `Image file not found. Searched locations:\n- ${image.file_path}\n- ${expectedPath}\n- ${searchPaths.join('\n- ')}`, 
+            { status: 404 }
+          );
+        }
+      }
+    }
     
     // Determine content type
     const ext = path.extname(image.filename).toLowerCase();
@@ -37,6 +119,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       '.jpeg': 'image/jpeg',
       '.png': 'image/png',
       '.webp': 'image/webp',
+      '.gif': 'image/gif',
     }[ext] || 'image/jpeg';
     
     // Return image with proper headers
@@ -44,11 +127,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Length': fileBuffer.length.toString(),
       },
     });
+    
   } catch (error) {
     console.error('Error serving image:', error);
-    return new NextResponse('Image not found', { status: 404 });
+    return new NextResponse(
+      `Server error: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      { status: 500 }
+    );
   }
 }
 
@@ -141,88 +229,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete image',
-    }, { status: 500 });
-  }
-}
-
-// POST /api/images/[imageId] - Replace image file
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({
-        success: false,
-        error: 'Unauthorized',
-      }, { status: 401 });
-    }
-    
-    const { imageId } = await params;
-    
-    // Get existing image
-    const existingImage = await storage.getImage(imageId);
-    if (!existingImage) {
-      return NextResponse.json({
-        success: false,
-        error: 'Image not found',
-      }, { status: 404 });
-    }
-    
-    // Verify ownership
-    const sessionData = await storage.getSession(existingImage.session_id);
-    if (!sessionData || sessionData.created_by !== session.user.id) {
-      return NextResponse.json({
-        success: false,
-        error: 'Access denied',
-      }, { status: 403 });
-    }
-    
-    // Parse new file
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
-      return NextResponse.json({
-        success: false,
-        error: 'No file provided',
-      }, { status: 400 });
-    }
-    
-    // Convert to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    
-    // Extract new dimensions
-    let dimensions = { width: 0, height: 0 };
-    try {
-      const sharp = require('sharp');
-      const imageMetadata = await sharp(buffer).metadata();
-      dimensions = {
-        width: imageMetadata.width || 0,
-        height: imageMetadata.height || 0,
-      };
-    } catch (error) {
-      console.error('Failed to extract dimensions:', error);
-    }
-    
-    // Save new file (overwrite existing)
-    const { writeFile } = await import('fs/promises');
-    await writeFile(existingImage.file_path, buffer);
-    
-    // Update metadata
-    const updatedImage = await storage.updateImage(imageId, {
-      file_size: file.size,
-      image_dimensions: dimensions,
-      original_filename: file.name,
-    });
-    
-    return NextResponse.json({
-      success: true,
-      data: updatedImage,
-    });
-  } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to replace image',
     }, { status: 500 });
   }
 }

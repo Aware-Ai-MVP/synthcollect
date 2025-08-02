@@ -62,7 +62,7 @@ SynthCollect is a production-ready web application designed to streamline the co
    Edit `.env.local`:
    ```env
    NEXTAUTH_SECRET=your-32-character-secret-here
-   NEXTAUTH_URL=http://localhost:3000
+   NEXTAUTH_URL=http://localhost:3050
    ```
 
 4. **Run development server**
@@ -71,7 +71,7 @@ SynthCollect is a production-ready web application designed to streamline the co
    ```
 
 5. **Access the application**
-   - URL: http://localhost:3000
+   - URL: http://localhost:3050
    - Default credentials: `test@example.com` / `testpass123`
 
 ## 📚 Usage Guide
@@ -152,66 +152,250 @@ Edit `src/lib/config/scoring-fields.json` to add/modify scoring fields:
 ### Application Settings
 Edit `src/lib/config/app-config.json` for app-wide settings.
 
-## 🚀 Deployment
+## 🚀 Deployment Guide
 
-### Production Build
+### Prerequisites
+- Node.js 18.17+ 
+- npm 9.0+
+- PM2 (for production process management)
+- nginx (optional, for reverse proxy)
+
+### Environment Setup
+
+1. **Clone repository**
+   ```bash
+   git clone <repository-url>
+   cd synthcollect
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm ci --only=production
+   ```
+
+3. **Environment configuration**
+   ```bash
+   cp .env.example .env.local
+   ```
+   
+   **Critical environment variables:**
+   ```env
+   # REQUIRED: 32+ character random string
+   NEXTAUTH_SECRET=your-super-secret-key-32-chars-minimum
+   
+   # REQUIRED: Full URL of your deployment
+   NEXTAUTH_URL=https://synthcollect.yourdomain.com
+   
+   # REQUIRED: Production mode
+   NODE_ENV=production
+   
+   # OPTIONAL: Custom port (default: 3000)
+   PORT=3000
+   ```
+
+### Production Deployment
+
+#### Option 1: PM2 (Recommended)
+```bash
+# Build application
+npm run build
+
+# Install PM2 globally
+npm install -g pm2
+
+# Start application
+pm2 start npm --name "synthcollect" -- start
+
+# Save PM2 configuration
+pm2 save
+
+# Setup PM2 to start on boot
+pm2 startup
+```
+
+**PM2 Management Commands:**
+```bash
+pm2 list                    # List all processes
+pm2 logs synthcollect       # View logs
+pm2 restart synthcollect    # Restart app
+pm2 stop synthcollect       # Stop app
+pm2 delete synthcollect     # Remove app
+pm2 monit                   # Monitor resources
+```
+
+#### Option 2: Direct Node.js
 ```bash
 npm run build
 npm start
 ```
 
-
-### 🛡️ Production with PM2
-
-For reliable production deployments, we recommend PM2.
-
-1. Add PM2 as a Dependency :
-   ```
-   npm install pm2 --save-dev
-   ```
-   (or if you prefer install PM2 globally)
-   ```
-   npm install -g pm2
-   ```
-
-2. Build your app:
-   ```
-   npm run build
-   ```
-
-3. Start with PM2:
-   ```
-   pm2 start npm --name "synthcollect" -- start
-   ```
-
-4. Common PM2 commands:
-   - List processes: `pm2 list`
-   - View logs: `pm2 logs synthcollect`
-   - Restart: `pm2 restart synthcollect`
-   - Stop: `pm2 stop synthcollect`
-   - Delete: `pm2 delete synthcollect`
-   - Save for restart on reboot: `pm2 save; pm2 startup`
-
-
-### Docker
+#### Option 3: Docker
 ```bash
+# Build image
 docker build -t synthcollect .
-docker run -p 3000:3000 synthcollect
+
+# Run container
+docker run -d \
+  --name synthcollect \
+  -p 3000:3000 \
+  -v $(pwd)/data:/app/data \
+  -e NEXTAUTH_SECRET=your-secret \
+  -e NEXTAUTH_URL=https://synthcollect.yourdomain.com \
+  synthcollect
 ```
 
-### Environment Variables
-- `NEXTAUTH_SECRET`: 32+ character secret for auth
-- `NEXTAUTH_URL`: Full URL of deployment
-- `NODE_ENV`: Set to "production"
+### Reverse Proxy (nginx)
 
-## 🔒 Security
+Create `/etc/nginx/sites-available/synthcollect`:
+```nginx
+server {
+    listen 80;
+    server_name synthcollect.yourdomain.com;
 
-- JWT-based authentication with httpOnly cookies
-- Session validation on all API endpoints
-- Input validation with Zod schemas
-- File type and size restrictions
-- XSS protection via React
-- CSRF protection via NextAuth
+    location / {
+        proxy_pass http://localhost:3050;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Enable site and restart nginx:
+```bash
+sudo ln -s /etc/nginx/sites-available/synthcollect /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### SSL Certificate (Let's Encrypt)
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d synthcollect.yourdomain.com
+```
+
+### Data Backup Strategy
+
+**Automated backup script** (`scripts/backup.sh`):
+```bash
+#!/bin/bash
+BACKUP_DIR="/backups/synthcollect"
+APP_DATA="/path/to/synthcollect/data"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+mkdir -p $BACKUP_DIR
+tar -czf "$BACKUP_DIR/synthcollect_backup_$DATE.tar.gz" $APP_DATA
+
+# Keep only last 30 days
+find $BACKUP_DIR -type f -mtime +30 -delete
+```
+
+**Setup daily backups:**
+```bash
+chmod +x scripts/backup.sh
+crontab -e
+# Add: 0 2 * * * /path/to/synthcollect/scripts/backup.sh
+```
+
+### Monitoring & Health Checks
+
+**Health check endpoint:** `GET /api/health`
+
+**Basic monitoring with PM2:**
+```bash
+pm2 install pm2-logrotate    # Log rotation
+pm2 set pm2-logrotate:max_size 10M
+pm2 set pm2-logrotate:retain 7
+```
+
+### Security Considerations
+
+1. **File Permissions:**
+   ```bash
+   chmod 755 synthcollect/
+   chmod -R 644 synthcollect/data/
+   chown -R app:app synthcollect/
+   ```
+
+2. **Firewall:**
+   ```bash
+   sudo ufw allow 22          # SSH
+   sudo ufw allow 80          # HTTP
+   sudo ufw allow 443         # HTTPS
+   sudo ufw enable
+   ```
+
+3. **Environment Variables:**
+   - Never commit `.env*` files to git
+   - Use strong NEXTAUTH_SECRET (32+ characters)
+   - Regenerate secrets for production
+
+### Performance Optimization
+
+1. **Enable gzip compression** (nginx):
+   ```nginx
+   gzip on;
+   gzip_types text/plain text/css application/json application/javascript;
+   ```
+
+2. **Static file caching** (nginx):
+   ```nginx
+   location /_next/static/ {
+       expires 1y;
+       add_header Cache-Control "public, immutable";
+   }
+   ```
+
+### Troubleshooting
+
+**Common issues:**
+
+1. **Port already in use:**
+   ```bash
+   sudo lsof -i :3000
+   sudo kill -9 <PID>
+   ```
+
+2. **Permission denied for data directory:**
+   ```bash
+   sudo chown -R $USER:$USER data/
+   chmod -R 755 data/
+   ```
+
+3. **Environment variables not loading:**
+   ```bash
+   # Check if .env.local exists and has correct values
+   cat .env.local
+   ```
+
+4. **NextAuth errors:**
+   - Verify NEXTAUTH_SECRET is set
+   - Ensure NEXTAUTH_URL matches deployment URL
+   - Check for trailing slashes in URLs
+
+**Logs location:**
+- PM2 logs: `~/.pm2/logs/`
+- Application logs: Check PM2 logs or stdout
+- nginx logs: `/var/log/nginx/`
+
+### Scaling Considerations
+
+**Current limitations:**
+- JSON file storage (suitable for ~10K images)
+- Single server deployment
+- No real-time collaboration
+
+**Future scaling options:**
+- Database migration (PostgreSQL ready)
+- Load balancer with multiple instances
+- CDN for image serving
+- Redis for session storage
+
 
 ## 🐛 Known Issues
 

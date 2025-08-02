@@ -1,5 +1,5 @@
 /**
- * Complete validation schemas for SynthCollect
+ * FIXED Complete validation schemas for SynthCollect with file_path
  * @filepath src/lib/validations/index.ts
  */
 
@@ -30,7 +30,7 @@ export const UserSchema = z.object({
   name: z.string().min(2).max(100),
 });
 
-// Import metadata validation
+// **CRITICAL FIX**: Import metadata validation with file_path
 export const ImportMetadataSchema = z.object({
   session: z.object({
     name: z.string(),
@@ -40,6 +40,7 @@ export const ImportMetadataSchema = z.object({
   images: z.array(z.object({
     filename: z.string(),
     original_filename: z.string(),
+    file_path: z.string().optional(), // **CRITICAL**: This was missing!
     file_size: z.number(),
     image_dimensions: z.object({
       width: z.number(),
@@ -51,6 +52,11 @@ export const ImportMetadataSchema = z.object({
     quality_rating: z.number().min(1).max(5).optional(),
     tags: z.array(z.string()).optional(),
     notes: z.string().optional(),
+    // Additional fields that might be in exports
+    upload_timestamp: z.string().optional(),
+    uploaded_by: z.string().optional(),
+    id: z.string().optional(),
+    session_id: z.string().optional(),
   })),
   export_timestamp: z.string(),
   export_version: z.string(),

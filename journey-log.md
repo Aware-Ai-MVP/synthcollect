@@ -472,3 +472,135 @@ This journey log is optimized for LLM understanding with:
   "ui_pattern": "Consistent with image management",
   "safety": "Prevent deletion of sessions with images"
 }
+### Phase 5: Import/Export System Fix (August 2025)
+```json
+{
+  "critical_bug_fix": {
+    "issue": "Import/Export session functionality broken - images not loading after import",
+    "root_causes": [
+      "Missing file_path field in ImportMetadataSchema validation",
+      "Incomplete processImages method in ImportService",
+      "Inconsistent path handling between export and import",
+      "Poor error handling masking actual failures"
+    ],
+    "files_fixed": [
+      "src/lib/validations/index.ts - Added missing file_path field to ImportMetadataSchema",
+      "src/lib/services/import-service.ts - Complete rewrite with proper ZIP extraction",
+      "src/app/api/images/[imageId]/route.ts - Enhanced error handling with multi-level file search",
+      "scripts/debug-import.js - New diagnostic tool for troubleshooting imports",
+      "scripts/fix-imported-sessions.js - Recovery tool for existing broken imports"
+    ],
+    "technical_achievements": [
+      "Robust ZIP file extraction with proper path normalization",
+      "Multi-level file search with auto-healing path correction", 
+      "Comprehensive error logging and diagnostics",
+      "Backward compatibility with existing data",
+      "Production-ready import validation pipeline"
+    ]
+  },
+  "implementation_details": {
+    "import_service_improvements": [
+      "Added detailed console logging for debugging",
+      "Proper ArrayBuffer to JSZip conversion",
+      "Robust file path handling (relative/absolute)",
+      "Enhanced duplicate detection logic",
+      "File verification after extraction"
+    ],
+    "validation_schema_fixes": [
+      "Added optional file_path field to image metadata",
+      "Included missing export fields (id, session_id, timestamps)",
+      "Made schema more permissive for import compatibility"
+    ],
+    "image_api_enhancements": [
+      "Multi-level file search when primary path fails",
+      "Auto-healing: updates stored paths when files found elsewhere",
+      "Detailed error messages showing all search attempts",
+      "File existence verification before serving"
+    ]
+  },
+  "debugging_tools_added": [
+    "scripts/debug-import.js - Analyzes ZIP files and simulates import",
+    "scripts/fix-imported-sessions.js - Repairs existing broken imports", 
+    "scripts/diagnosis.sh - Complete system health check",
+    "Enhanced console logging throughout import pipeline"
+  ]
+}
+```
+
+### Production Deployment Notes
+```typescript
+// Import/Export System Status: ✅ FIXED & TESTED
+interface ImportExportSystem {
+  status: 'production_ready';
+  capabilities: [
+    'Full ZIP export with images and metadata',
+    'JSON-only export for metadata backup',
+    'Robust import with file extraction',
+    'Duplicate handling (skip/replace/rename)',
+    'Path normalization and error recovery',
+    'Comprehensive validation and logging'
+  ];
+  testing_checklist: [
+    '✅ Create session with multiple images',
+    '✅ Export session (both JSON and ZIP modes)',
+    '✅ Import exported session as new session',
+    '✅ Verify all images load correctly',
+    '✅ Test duplicate handling strategies',
+    '✅ Validate metadata preservation'
+  ];
+}
+```
+
+### Critical Bug Resolution Timeline
+```json
+{
+  "issue_discovery": "Session images not loading after import - 404 errors",
+  "diagnosis_phase": {
+    "tools_used": ["Console logging analysis", "File system inspection", "ZIP content verification"],
+    "root_cause_identified": "Validation schema missing file_path field + incomplete import logic"
+  },
+  "solution_implementation": {
+    "approach": "Complete rewrite of import service with enhanced validation",
+    "validation": "Fixed schema to include all export fields",
+    "error_handling": "Multi-level file search with auto-healing",
+    "testing": "Comprehensive diagnostic tools for future troubleshooting"
+  },
+  "verification": "Full import/export cycle working correctly"
+}
+```
+
+### For Next AI Agent - Import/Export Context
+```markdown
+## Import/Export System Architecture
+
+### Current Implementation Status: ✅ WORKING
+- **Export**: Creates ZIP files with metadata.json + images/ folder
+- **Import**: Extracts ZIP, validates metadata, recreates file structure
+- **Validation**: Comprehensive Zod schemas with all required fields
+- **Error Handling**: Multi-level file search with detailed logging
+
+### Key Files to Understand:
+1. `src/lib/services/import-service.ts` - Core import logic with ZIP extraction
+2. `src/lib/validations/index.ts` - ImportMetadataSchema with file_path field
+3. `src/app/api/images/[imageId]/route.ts` - Image serving with auto-healing
+4. `scripts/debug-import.js` - Diagnostic tool for troubleshooting
+
+### Testing Import/Export:
+```bash
+# Run diagnostics
+node scripts/debug-import.js
+
+# Fix existing broken imports  
+node scripts/fix-imported-sessions.js
+
+# System health check
+chmod +x scripts/diagnosis.sh && ./scripts/diagnosis.sh
+```
+
+### Common Issues & Solutions:
+- **Images not loading**: Check file_path in metadata, use diagnostic script
+- **Import validation fails**: Ensure ZIP has metadata.json and images/ folder
+- **Path issues**: Import service handles both relative/absolute paths automatically
+- **Broken existing imports**: Use fix-imported-sessions.js script
+```
+

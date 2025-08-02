@@ -1,5 +1,5 @@
 /**
- * Fixed import service with proper file handling
+ * COMPLETELY FIXED import service with proper file extraction and path handling
  * @filepath src/lib/services/import-service.ts
  */
 
@@ -9,7 +9,7 @@ import { ImageRecord } from '@/lib/types';
 import { ImportMetadataSchema } from '@/lib/validations';
 import { nanoid } from 'nanoid';
 import path from 'path';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, access } from 'fs/promises';
 import JSZip from 'jszip';
 
 export class ImportService {
@@ -152,11 +152,19 @@ export class ImportService {
     let imported = 0;
     let skipped = 0;
     
+    console.log(`🔄 Processing ${metadata.images.length} images for session ${sessionId}`);
+    console.log(`📁 Import mode: ${options.mode}, ZIP: ${isZip}`);
+    
     // Load ZIP if needed for image files
     let zip: JSZip | null = null;
     if (isZip) {
       zip = new JSZip();
       await zip.loadAsync(arrayBuffer);
+      console.log('📦 ZIP loaded successfully');
+      
+      // List all files in ZIP for debugging
+      const zipFiles = Object.keys(zip.files);
+      console.log('📂 Files in ZIP:', zipFiles);
     }
     
     // Get existing images for duplicate detection
@@ -164,6 +172,9 @@ export class ImportService {
       ? await storage.listImages(sessionId)
       : [];
     
+    console.log(`🔍 Found ${existingImages.length} existing images for duplicate detection`);
+    
+    // Process each image
     for (let i = 0; i < metadata.images.length; i++) {
       const imageData = metadata.images[i];
       
@@ -173,73 +184,123 @@ export class ImportService {
       });
       
       try {
+        console.log(`\n📸 Processing image ${i + 1}/${metadata.images.length}: ${imageData.original_filename}`);
+        
+        // Skip if no required data
+        if (!imageData.filename || !imageData.original_filename) {
+          console.warn('⚠️  Skipping image with missing filename data');
+          skipped++;
+          continue;
+        }
+        
         // Check for duplicates if merging
         if (options.mode === 'merge') {
           const duplicate = await this.checkDuplicate(imageData, existingImages);
           
           if (duplicate) {
+            console.log(`🔄 Found duplicate: ${duplicate.reason}`);
             if (options.duplicateStrategy === 'skip') {
+              console.log('⏭️  Skipping duplicate');
               skipped++;
               continue;
             } else if (options.duplicateStrategy === 'replace') {
-              // Delete existing and continue with import
+              console.log('🔄 Replacing existing image');
               await storage.deleteImage(duplicate.existing.id);
             }
             // For 'rename' strategy, we'll add a suffix to the filename
           }
         }
         
-        // Generate new paths
-        const newFilename = options.duplicateStrategy === 'rename' && options.mode === 'merge'
-          ? this.generateUniqueFilename(imageData.filename, existingImages)
-          : imageData.filename;
+        // Generate new filename
+        const newFilename = (options.duplicateStrategy === 'rename' && options.mode === 'merge')
+          ? this.generateUniqueFilename(imageData.filename!, existingImages)
+          : imageData.filename!;
         
+        console.log(`📝 Using filename: ${newFilename}`);
+        
+        // **CRITICAL FIX**: Build correct paths
         const sessionPath = path.join(process.cwd(), 'data', 'sessions', sessionId);
         const imagesPath = path.join(sessionPath, 'images');
-        const filePath = path.join(imagesPath, newFilename);
+        const absoluteFilePath = path.join(imagesPath, newFilename);
+        
+        console.log(`📁 Target directory: ${imagesPath}`);
+        console.log(`📄 Target file path: ${absoluteFilePath}`);
         
         // Ensure directory exists
         await mkdir(imagesPath, { recursive: true });
+        console.log('✅ Directory created/verified');
         
-        // Copy image file if ZIP import
-        if (zip && imageData.file_path) {
-          const relativePath = imageData.file_path.replace(/^\//, ''); // Remove leading slash if present
-          const imageFile = zip.file(relativePath);
-          
-          if (!imageFile) {
-            console.error(`Image file not found in ZIP: ${relativePath}`);
-            this.progress.errors.push(`Image file not found: ${imageData.original_filename}`);
+        // **CRITICAL FIX**: Handle file extraction properly
+        if (isZip && zip) {
+          // Handle ZIP import - extract image file
+          if (!imageData.file_path) {
+            console.warn(`⚠️  No file_path in metadata for ${imageData.original_filename}`);
             skipped++;
             continue;
           }
           
+          // Clean up the path from metadata (remove leading slashes)
+          const metadataPath = imageData.file_path.replace(/^\/+/, '');
+          console.log(`🔍 Looking for image in ZIP at: "${metadataPath}"`);
+          
+          // Try to find the file in ZIP
+          const imageFile = zip.file(metadataPath);
+          
+          if (!imageFile) {
+            console.error(`❌ Image file not found in ZIP: ${metadataPath}`);
+            console.log('📂 Available files in ZIP:', Object.keys(zip.files));
+            this.progress.errors.push(`Image file not found in ZIP: ${imageData.original_filename} (path: ${metadataPath})`);
+            skipped++;
+            continue;
+          }
+          
+          console.log('📦 Extracting image from ZIP...');
           const imageBuffer = await imageFile.async('nodebuffer');
-          await writeFile(filePath, imageBuffer);
-        } else if (!zip && !imageData.file_path) {
-          // JSON-only import, skip image file
-          console.warn(`No image file for ${imageData.original_filename} (JSON-only import)`);
+          await writeFile(absoluteFilePath, imageBuffer);
+          console.log(`✅ Image extracted and written to: ${absoluteFilePath}`);
+          
+          // Verify file was written
+          try {
+            await access(absoluteFilePath);
+            console.log('✅ File verified on disk');
+          } catch (verifyError) {
+            console.error('❌ File verification failed:', verifyError);
+            throw new Error(`Failed to verify written file: ${absoluteFilePath}`);
+          }
+          
+        } else if (!isZip) {
+          // JSON-only import - no image files to extract
+          console.log('📄 JSON-only import - skipping file extraction');
+        } else {
+          console.warn('⚠️  ZIP mode but no ZIP object available');
+          skipped++;
+          continue;
         }
         
-        // Create image record
-        await storage.createImage({
+        // **CRITICAL FIX**: Create image record with correct data
+        console.log('💾 Creating image record in storage...');
+        
+        const imageRecord = await storage.createImage({
           session_id: sessionId,
           filename: newFilename,
-          original_filename: imageData.original_filename,
-          file_path: filePath,
-          file_size: imageData.file_size,
-          image_dimensions: imageData.image_dimensions,
-          prompt: imageData.prompt,
-          generator_used: imageData.generator_used,
+          original_filename: imageData.original_filename || newFilename,
+          file_path: absoluteFilePath, // Storage will convert to relative
+          file_size: imageData.file_size || 0,
+          image_dimensions: imageData.image_dimensions || { width: 0, height: 0 },
+          prompt: imageData.prompt || '',
+          generator_used: imageData.generator_used || 'other',
           ai_scores: imageData.ai_scores || {},
           quality_rating: imageData.quality_rating,
           tags: imageData.tags || [],
-          notes: imageData.notes,
+          notes: imageData.notes || '',
           uploaded_by: userId,
         });
         
+        console.log(`✅ Image record created with ID: ${imageRecord.id}`);
         imported++;
+        
       } catch (error) {
-        console.error('Error importing image:', error);
+        console.error('❌ Error importing image:', error);
         this.progress.errors.push(
           `Failed to import ${imageData.original_filename}: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
@@ -247,11 +308,7 @@ export class ImportService {
       }
     }
     
-    // Update progress
-    this.updateProgress({
-      processed: metadata.images.length,
-      skipped,
-    });
+    console.log(`\n🎉 Import complete: ${imported} imported, ${skipped} skipped`);
     
     return { imported, skipped };
   }
@@ -270,10 +327,21 @@ export class ImportService {
       };
     }
     
+    // Check by original filename
+    const sameOriginal = existing.find(e => e.original_filename === importing.original_filename);
+    if (sameOriginal) {
+      return {
+        existing: sameOriginal,
+        importing,
+        reason: 'same_name',
+      };
+    }
+    
     // Check by prompt (exact match)
     const samePrompt = existing.find(e => 
       e.prompt === importing.prompt && 
-      e.generator_used === importing.generator_used
+      e.generator_used === importing.generator_used &&
+      e.prompt && importing.prompt // Both must have prompts
     );
     if (samePrompt) {
       return {
@@ -298,7 +366,7 @@ export class ImportService {
     const ext = lastDotIndex > -1 ? filename.substring(lastDotIndex) : '';
     
     while (existing.some(e => e.filename === newFilename)) {
-      newFilename = `${name}_imported_${counter}${ext}`;
+      newFilename = `${name}_${counter}${ext}`;
       counter++;
     }
     
