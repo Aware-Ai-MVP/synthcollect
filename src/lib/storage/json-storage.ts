@@ -1,5 +1,5 @@
 /**
- * JSON file-based storage implementation with image mapping
+ * Fixed JSON storage with relative path handling
  * @filepath src/lib/storage/json-storage.ts
  */
 
@@ -11,9 +11,11 @@ import { StorageAdapter } from './base';
 
 export class JsonStorage implements StorageAdapter {
   private dataDir: string;
+  private projectRoot: string;
   
   constructor(dataDir: string = './data') {
     this.dataDir = dataDir;
+    this.projectRoot = process.cwd();
   }
   
   private async ensureDir(dirPath: string) {
@@ -26,6 +28,22 @@ export class JsonStorage implements StorageAdapter {
   
   private getSessionPath(sessionId: string) {
     return path.join(this.dataDir, 'sessions', sessionId);
+  }
+  
+  // Convert absolute path to relative for storage
+  private toRelativePath(absolutePath: string): string {
+    if (absolutePath.startsWith(this.projectRoot)) {
+      return path.relative(this.projectRoot, absolutePath);
+    }
+    return absolutePath;
+  }
+  
+  // Convert relative path to absolute for file operations
+  private toAbsolutePath(relativePath: string): string {
+    if (path.isAbsolute(relativePath)) {
+      return relativePath;
+    }
+    return path.join(this.projectRoot, relativePath);
   }
   
   private async readMetadata(sessionId: string): Promise<any> {
@@ -126,11 +144,25 @@ export class JsonStorage implements StorageAdapter {
   async deleteSession(id: string): Promise<void> {
     const sessionPath = this.getSessionPath(id);
     await fs.rm(sessionPath, { recursive: true, force: true });
+    
+    // Clean up image mappings
+    const mapping = await this.getImageMapping();
+    const updatedMapping: Record<string, string> = {};
+    
+    for (const [imageId, sessionId] of Object.entries(mapping)) {
+      if (sessionId !== id) {
+        updatedMapping[imageId] = sessionId;
+      }
+    }
+    
+    await this.saveImageMapping(updatedMapping);
   }
   
   async createImage(data: Omit<ImageRecord, 'id' | 'upload_timestamp'>): Promise<ImageRecord> {
     const image: ImageRecord = {
       ...data,
+      // Store relative path
+      file_path: this.toRelativePath(data.file_path),
       id: nanoid(),
       upload_timestamp: new Date().toISOString(),
     };
@@ -162,12 +194,26 @@ export class JsonStorage implements StorageAdapter {
     if (!sessionId) return null;
     
     const metadata = await this.readMetadata(sessionId);
-    return metadata.images[id] || null;
+    const image = metadata.images[id];
+    
+    if (!image) return null;
+    
+    // Return with absolute path for file operations
+    return {
+      ...image,
+      file_path: this.toAbsolutePath(image.file_path),
+    };
   }
   
   async listImages(sessionId: string): Promise<ImageRecord[]> {
     const metadata = await this.readMetadata(sessionId);
-    return Object.values(metadata.images || {});
+    const images = Object.values(metadata.images || {}) as ImageRecord[];
+    
+    // Convert to absolute paths for file operations
+    return images.map(img => ({
+      ...img,
+      file_path: this.toAbsolutePath(img.file_path),
+    }));
   }
   
   async updateImage(id: string, updates: Partial<ImageRecord>): Promise<ImageRecord> {
@@ -179,10 +225,19 @@ export class JsonStorage implements StorageAdapter {
     const metadata = await this.readMetadata(sessionId);
     if (!metadata.images[id]) throw new Error('Image not found');
     
+    // If updating file_path, convert to relative
+    if (updates.file_path) {
+      updates.file_path = this.toRelativePath(updates.file_path);
+    }
+    
     metadata.images[id] = { ...metadata.images[id], ...updates };
     await this.writeMetadata(sessionId, metadata);
     
-    return metadata.images[id];
+    // Return with absolute path
+    return {
+      ...metadata.images[id],
+      file_path: this.toAbsolutePath(metadata.images[id].file_path),
+    };
   }
   
   async deleteImage(id: string): Promise<void> {
@@ -196,9 +251,10 @@ export class JsonStorage implements StorageAdapter {
     
     if (!image) throw new Error('Image not found');
     
-    // Delete file
+    // Delete file (handle both relative and absolute paths)
     try {
-      await fs.unlink(image.file_path);
+      const filePath = this.toAbsolutePath(image.file_path);
+      await fs.unlink(filePath);
     } catch {
       // File might not exist
     }
@@ -220,6 +276,19 @@ export class JsonStorage implements StorageAdapter {
     }
   }
   
+  // Delete all images in a session
+  async deleteAllSessionImages(sessionId: string): Promise<void> {
+    const images = await this.listImages(sessionId);
+    
+    for (const image of images) {
+      try {
+        await this.deleteImage(image.id);
+      } catch (error) {
+        console.error(`Failed to delete image ${image.id}:`, error);
+      }
+    }
+  }
+  
   async getSessionStats(sessionId: string): Promise<any> {
     const images = await this.listImages(sessionId);
     const generators = images.reduce((acc, img) => {
@@ -238,9 +307,15 @@ export class JsonStorage implements StorageAdapter {
     const session = await this.getSession(sessionId);
     const images = await this.listImages(sessionId);
     
+    // Convert back to relative paths for export
+    const exportImages = images.map(img => ({
+      ...img,
+      file_path: this.toRelativePath(img.file_path),
+    }));
+    
     const exportData = {
       session,
-      images,
+      images: exportImages,
       exported_at: new Date().toISOString(),
     };
     
@@ -252,4 +327,5 @@ export class JsonStorage implements StorageAdapter {
   }
 }
 
+// Export singleton instance
 export const storage = new JsonStorage();

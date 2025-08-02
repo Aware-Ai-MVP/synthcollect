@@ -437,3 +437,38 @@ This journey log is optimized for LLM understanding with:
 - Complete technical details
 - No ambiguity in descriptions
 - Full context for any operation
+
+### Step 11: Import/Merge Feature (Completed)
+
+#### FEATURE_SPECIFICATION
+```json
+{
+  "capabilities": [
+    "Import from JSON export",
+    "Import from ZIP with images",
+    "Create new session from import",
+    "Merge into existing session",
+    "Duplicate detection and handling"
+  ],
+  "duplicate_strategies": {
+    "skip": "Ignore duplicate images",
+    "replace": "Overwrite existing images",
+    "rename": "Import with unique names"
+  }
+}
+
+### Step 12: Session Management Features (Completed)
+
+#### FEATURE_SPECIFICATION
+```json
+{
+  "capabilities": [
+    "Edit session name and description",
+    "Delete empty sessions",
+    "Archive sessions",
+    "Dropdown menu on hover",
+    "Inline edit dialog"
+  ],
+  "ui_pattern": "Consistent with image management",
+  "safety": "Prevent deletion of sessions with images"
+}

@@ -1,19 +1,22 @@
 /**
- * Main dashboard page with proper provider wrapping
+ * Add import functionality to dashboard
  * @filepath src/app/page.tsx
  */
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Header } from '@/components/layout/header';
 import { SessionCard } from '@/components/sessions/session-card';
 import { CreateSessionDialog } from '@/components/sessions/create-session-dialog';
+import { ImportDialog } from '@/components/sessions/import-dialog';
 import { useSessionStore } from '@/stores/session-store';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Upload } from 'lucide-react';
 
 export default function HomePage() {
   const { sessions, loading, error, fetchSessions } = useSessionStore();
+  const [importOpen, setImportOpen] = useState(false);
   
   useEffect(() => {
     fetchSessions();
@@ -31,7 +34,16 @@ export default function HomePage() {
               Manage your AI-generated image collections
             </p>
           </div>
-          <CreateSessionDialog />
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Import
+            </Button>
+            <CreateSessionDialog />
+          </div>
         </div>
         
         {error && (
@@ -47,7 +59,16 @@ export default function HomePage() {
         ) : sessions.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 dark:text-gray-400 mb-4">No sessions yet</p>
-            <CreateSessionDialog />
+            <div className="flex justify-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Import Data
+              </Button>
+              <CreateSessionDialog />
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -57,6 +78,15 @@ export default function HomePage() {
           </div>
         )}
       </main>
+      
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImportComplete={() => {
+          setImportOpen(false);
+          fetchSessions();
+        }}
+      />
     </div>
   );
 }

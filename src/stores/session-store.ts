@@ -1,5 +1,5 @@
 /**
- * Global state management for sessions using Zustand
+ * Enhanced session store with update/delete actions
  * @filepath src/stores/session-store.ts
  */
 
@@ -17,6 +17,8 @@ interface SessionState {
   // Actions
   fetchSessions: () => Promise<void>;
   createSession: (name: string, description?: string) => Promise<Session>;
+  updateSession: (id: string, updates: Partial<Session>) => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   clearError: () => void;
   refreshCurrentSession: () => Promise<void>;
@@ -76,6 +78,70 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (error) {
       set({ 
         error: error instanceof Error ? error.message : 'Failed to create session',
+        loading: false 
+      });
+      throw error;
+    }
+  },
+  
+  // Update session
+  updateSession: async (id: string, updates: Partial<Session>) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await fetch(`/api/sessions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to update session');
+      }
+      
+      // Update in local state
+      set(state => ({
+        sessions: state.sessions.map(s => 
+          s.id === id ? { ...s, ...data.data } : s
+        ),
+        currentSession: state.currentSession?.id === id 
+          ? { ...state.currentSession, ...data.data }
+          : state.currentSession,
+        loading: false,
+      }));
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to update session',
+        loading: false 
+      });
+      throw error;
+    }
+  },
+  
+  // Delete session
+  deleteSession: async (id: string) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await fetch(`/api/sessions/${id}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to delete session');
+      }
+      
+      // Remove from local state
+      set(state => ({
+        sessions: state.sessions.filter(s => s.id !== id),
+        currentSession: state.currentSession?.id === id ? null : state.currentSession,
+        loading: false,
+      }));
+    } catch (error) {
+      set({ 
+        error: error instanceof Error ? error.message : 'Failed to delete session',
         loading: false 
       });
       throw error;

@@ -1,0 +1,21 @@
+{
+  "images": {
+    "mY-UjNiYWyjXx0HAN9HTC": {
+      "session_id": "8Bcc2tNmvwtimUbd5BZim",
+      "filename": "img_2025-08-02T13-13-17-715Z.jpg",
+      "original_filename": "man-drowsy-driving-australia-1280x640.jpg",
+      "file_path": "data/sessions/8Bcc2tNmvwtimUbd5BZim/images/img_2025-08-02T13-13-17-715Z.jpg",
+      "file_size": 47593,
+      "image_dimensions": {
+        "width": 0,
+        "height": 0
+      },
+      "prompt": "drow",
+      "generator_used": "midjourney",
+      "tags": [],
+      "uploaded_by": "1",
+      "id": "mY-UjNiYWyjXx0HAN9HTC",
+      "upload_timestamp": "2025-08-02T13:13:17.717Z"
+    }
+  }
+}

@@ -160,6 +160,39 @@ npm run build
 npm start
 ```
 
+
+### 🛡️ Production with PM2
+
+For reliable production deployments, we recommend PM2.
+
+1. Add PM2 as a Dependency :
+   ```
+   npm install pm2 --save-dev
+   ```
+   (or if you prefer install PM2 globally)
+   ```
+   npm install -g pm2
+   ```
+
+2. Build your app:
+   ```
+   npm run build
+   ```
+
+3. Start with PM2:
+   ```
+   pm2 start npm --name "synthcollect" -- start
+   ```
+
+4. Common PM2 commands:
+   - List processes: `pm2 list`
+   - View logs: `pm2 logs synthcollect`
+   - Restart: `pm2 restart synthcollect`
+   - Stop: `pm2 stop synthcollect`
+   - Delete: `pm2 delete synthcollect`
+   - Save for restart on reboot: `pm2 save; pm2 startup`
+
+
 ### Docker
 ```bash
 docker build -t synthcollect .
