@@ -19,12 +19,21 @@ interface StoredUser {
 const users = new Map<string, StoredUser>();
 
 // Initialize test user with hashed password
-users.set('test@example.com', {
-  id: '1',
-  email: 'test@example.com',
-  name: 'Test User',
-  password: bcrypt.hashSync('testpass123', 10),
+// users.set('test@example.com', {
+//   id: '1',
+//   email: 'test@example.com',
+//   name: 'Test User',
+//   password: bcrypt.hashSync('testpass123', 10),
+// });
+
+users.set('synthcollect@awareai.ai', {
+  id: '2',
+  email: 'synthcollect@awareai.ai',
+  name: 'AwareAi Synth Collect',
+  password: bcrypt.hashSync('synthcollect@awareai.ai2025AwareAi', 10),
 });
+
+
 
 export const authOptions: NextAuthOptions = {
   // Configure providers
