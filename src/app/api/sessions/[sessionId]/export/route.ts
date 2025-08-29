@@ -1,6 +1,6 @@
 /**
- * HIGH-PERFORMANCE STREAMING EXPORT ENDPOINT
- * Optimized for hundreds of images with memory efficiency and error resilience
+ * HIGH-PERFORMANCE STREAMING EXPORT WITH PROGRESS UPDATES
+ * Optimized for hundreds of images with real-time progress feedback
  * @filepath src/app/api/sessions/[sessionId]/export/route.ts
  */
 
@@ -17,10 +17,10 @@ import {
   safeReadFile,
   checkMemoryUsage,
   forceGC,
-  withTimeout,
   validateImageFile,
   createZipResponseHeaders,
 } from '@/lib/utils/stream-helpers';
+import type { ExportProgressData } from '@/lib/utils/progress-store';
 
 interface RouteParams {
   params: Promise<{
@@ -29,15 +29,14 @@ interface RouteParams {
 }
 
 // Enable long-running API route (Next.js 15)
-export const maxDuration = 300; // 5 minutes
 export const dynamic = 'force-dynamic';
 
 /**
- * POST /api/sessions/[sessionId]/export - High-performance export with streaming
+ * POST /api/sessions/[sessionId]/export - High-performance export with progress
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const exportStartTime = Date.now();
-  console.log('🚀 Starting high-performance export operation');
+  console.log('🚀 Starting high-performance export with progress tracking');
 
   try {
     // Authentication
@@ -61,6 +60,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }, { status: 404 });
     }
 
+    const progressReporter = new ExportProgressReporter(sessionId, session.user.id);
+    await progressReporter.updateProgress({
+      status: 'starting',
+      message: 'Initializing export...',
+      totalImages: 0,
+      processedImages: 0,
+      failedImages: 0,
+      percentage: 0,
+    });
+
     console.log(`📁 Exporting session: ${sessionData.name} (${sessionId})`);
 
     // Get all images
@@ -68,21 +77,42 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     console.log(`🖼️  Found ${images.length} images for export`);
 
     if (images.length === 0) {
+      await progressReporter.updateProgress({
+        status: 'error',
+        message: 'No images found',
+        error: 'Session has no images to export',
+      });
+      
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Session has no images to export',
       }, { status: 400 });
     }
 
+    await progressReporter.updateProgress({
+      status: 'validating',
+      message: `Found ${images.length} images, validating...`,
+      totalImages: images.length,
+      processedImages: 0,
+      failedImages: 0,
+      percentage: 0,
+    });
+
     // Handle JSON-only export (lightweight)
     if (mode === 'json') {
-      return handleJsonExport(sessionData, images);
+      return handleJsonExport(sessionData, images, progressReporter);
     }
 
     // Handle full ZIP export with streaming
     if (mode === 'full') {
-      return handleStreamingZipExport(sessionData, images);
+      return handleStreamingZipExport(sessionData, images, progressReporter);
     }
+
+    await progressReporter.updateProgress({
+      status: 'error',
+      message: 'Invalid export mode',
+      error: 'Export mode must be "json" or "full"',
+    });
 
     return NextResponse.json<ApiResponse>({
       success: false,
@@ -103,8 +133,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 /**
  * Handles lightweight JSON-only export
  */
-async function handleJsonExport(sessionData: any, images: any[]) {
+async function handleJsonExport(
+  sessionData: any, 
+  images: any[], 
+  progressReporter: ExportProgressReporter
+) {
   console.log('📄 Processing JSON-only export');
+  
+  await progressReporter.updateProgress({
+    status: 'processing',
+    message: 'Generating JSON export...',
+    percentage: 50,
+  });
   
   const exportData = {
     session: sessionData,
@@ -117,6 +157,12 @@ async function handleJsonExport(sessionData: any, images: any[]) {
     export_version: '1.0.0',
   };
 
+  await progressReporter.updateProgress({
+    status: 'complete',
+    message: 'JSON export completed successfully',
+    percentage: 100,
+  });
+
   return NextResponse.json(exportData, {
     headers: {
       'Content-Disposition': `attachment; filename="${sessionData.name.replace(/\s+/g, '_')}_export.json"`,
@@ -126,9 +172,13 @@ async function handleJsonExport(sessionData: any, images: any[]) {
 }
 
 /**
- * Handles high-performance streaming ZIP export
+ * Handles high-performance streaming ZIP export with progress updates
  */
-async function handleStreamingZipExport(sessionData: any, images: any[]) {
+async function handleStreamingZipExport(
+  sessionData: any, 
+  images: any[], 
+  progressReporter: ExportProgressReporter
+) {
   console.log(`📦 Starting streaming ZIP export for ${images.length} images`);
   
   // Initialize performance monitoring
@@ -136,6 +186,12 @@ async function handleStreamingZipExport(sessionData: any, images: any[]) {
   
   try {
     // Pre-validate all image files
+    await progressReporter.updateProgress({
+      status: 'validating',
+      message: 'Validating image files...',
+      percentage: 5,
+    });
+
     console.log('🔍 Pre-validating image files...');
     const validationResults = await Promise.all(
       images.map(async (img) => ({
@@ -155,10 +211,24 @@ async function handleStreamingZipExport(sessionData: any, images: any[]) {
     }
 
     if (validImages.length === 0) {
+      await progressReporter.updateProgress({
+        status: 'error',
+        message: 'No valid images found',
+        error: 'All images are invalid or missing',
+      });
       throw new Error('No valid images found for export');
     }
 
     console.log(`✅ Validated ${validImages.length}/${images.length} images`);
+
+    await progressReporter.updateProgress({
+      status: 'processing',
+      message: `Processing ${validImages.length} valid images...`,
+      totalImages: validImages.length,
+      processedImages: 0,
+      failedImages: invalidImages.length,
+      percentage: 10,
+    });
 
     // Create optimized archiver instance
     const archive = archiver('zip', EXPORT_CONFIG.ARCHIVER_OPTIONS);
@@ -205,17 +275,32 @@ async function handleStreamingZipExport(sessionData: any, images: any[]) {
 
     console.log('📄 Added metadata.json to archive');
 
-    // Process images in optimized batches
+    // Process images in optimized batches with progress updates
     await processImagesBatched(
       validImages,
       async (batch, batchIndex) => {
-        await processBatch(archive, batch, metrics, batchIndex);
+        await processBatchWithProgress(
+          archive, 
+          batch, 
+          metrics, 
+          batchIndex, 
+          progressReporter,
+          validImages.length,
+          invalidImages.length
+        );
       },
       EXPORT_CONFIG.BATCH_SIZE
     );
 
     // Finalize archive and complete stream
     console.log('🏁 Finalizing archive...');
+    
+    await progressReporter.updateProgress({
+      status: 'complete',
+      message: 'Export completed successfully',
+      percentage: 100,
+    });
+
     await archive.finalize();
 
     // Log final statistics
@@ -232,46 +317,70 @@ async function handleStreamingZipExport(sessionData: any, images: any[]) {
 
   } catch (error) {
     console.error('❌ Streaming export failed:', error);
+    
+    await progressReporter.updateProgress({
+      status: 'error',
+      message: 'Export failed',
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+    
     throw error;
   }
 }
 
 /**
- * Processes a batch of images with concurrent file operations
+ * Processes a batch of images with progress updates
  */
-async function processBatch(
+async function processBatchWithProgress(
   archive: archiver.Archiver,
   batch: Array<{ image: any; validation: any }>,
   metrics: ExportMetrics,
-  batchIndex: number
+  batchIndex: number,
+  progressReporter: ExportProgressReporter,
+  totalValidImages: number,
+  failedImages: number
 ): Promise<void> {
   const batchStart = Date.now();
 
   // Process files with controlled concurrency
-  const concurrentProcessors = [];
-  const semaphore = new Array(EXPORT_CONFIG.MAX_CONCURRENT_FILES).fill(null);
+  const processors = batch.map(async ({ image }) => {
+    try {
+      const buffer = await safeReadFile(image.file_path, image.filename, metrics);
+      
+      if (buffer) {
+        archive.append(buffer, { 
+          name: `images/${image.filename}`,
+          date: new Date(image.upload_timestamp || Date.now()),
+        });
+        
+        // Update progress after each successful file
+        const processedSoFar = metrics.processedCount;
+        const percentage = Math.min(95, 10 + (processedSoFar / totalValidImages) * 85);
+        
+        await progressReporter.updateProgress({
+          status: 'processing',
+          message: `Processing images... (${processedSoFar}/${totalValidImages})`,
+          processedImages: processedSoFar,
+          currentImage: image.filename,
+          percentage: Math.round(percentage),
+        });
 
-  for (const { image } of batch) {
-    const processorPromise = processImageFile(archive, image, metrics);
-    concurrentProcessors.push(processorPromise);
-
-    // Control concurrency by waiting for available slots
-    if (concurrentProcessors.length >= EXPORT_CONFIG.MAX_CONCURRENT_FILES) {
-      await Promise.race(concurrentProcessors);
-      // Remove completed promises
-      const completedIndices: number[] = [];
-      for (let i = 0; i < concurrentProcessors.length; i++) {
-        const promise = concurrentProcessors[i];
-        if (await isPromiseResolved(promise)) {
-          completedIndices.unshift(i);
+        if (EXPORT_CONFIG.ENABLE_DEBUG_LOGGING) {
+          console.log(`✓ Added ${image.filename} (${(buffer.length / 1024).toFixed(1)}KB)`);
         }
       }
-      completedIndices.forEach(i => concurrentProcessors.splice(i, 1));
+    } catch (error) {
+      console.error(`❌ Failed to process ${image.filename}:`, error);
+      metrics.recordFailed();
+      
+      if (!EXPORT_CONFIG.CONTINUE_ON_ERROR) {
+        throw error;
+      }
     }
-  }
+  });
 
-  // Wait for remaining processors to complete
-  await Promise.allSettled(concurrentProcessors);
+  // Wait for all files in batch to complete
+  await Promise.allSettled(processors);
 
   const batchDuration = Date.now() - batchStart;
   console.log(`✅ Batch ${batchIndex + 1} completed in ${batchDuration}ms`);
@@ -284,45 +393,27 @@ async function processBatch(
 }
 
 /**
- * Processes a single image file with error isolation
+ * Helper class for publishing progress updates
  */
-async function processImageFile(
-  archive: archiver.Archiver,
-  image: any,
-  metrics: ExportMetrics
-): Promise<void> {
-  try {
-    const buffer = await safeReadFile(image.file_path, image.filename, metrics);
-    
-    if (buffer) {
-      archive.append(buffer, { 
-        name: `images/${image.filename}`,
-        // Set file modification time from metadata
-        date: new Date(image.upload_timestamp || Date.now()),
+class ExportProgressReporter {
+  private sessionId: string;
+  private userId: string;
+
+  constructor(sessionId: string, userId: string) {
+    this.sessionId = sessionId;
+    this.userId = userId;
+  }
+
+  async updateProgress(update: Partial<ExportProgressData>): Promise<void> {
+    try {
+      await fetch(`/api/sessions/${this.sessionId}/export-progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(update),
       });
-      
-      if (EXPORT_CONFIG.ENABLE_DEBUG_LOGGING) {
-        console.log(`✓ Added ${image.filename} (${(buffer.length / 1024).toFixed(1)}KB)`);
-      }
-    }
-  } catch (error) {
-    console.error(`❌ Failed to process ${image.filename}:`, error);
-    metrics.recordFailed();
-    
-    if (!EXPORT_CONFIG.CONTINUE_ON_ERROR) {
-      throw error;
+    } catch (error) {
+      console.warn('⚠️ Failed to update progress:', error);
+      // Don't fail the export if progress update fails
     }
   }
-}
-
-/**
- * Helper to check if a promise has resolved (for concurrency control)
- */
-async function isPromiseResolved(promise: Promise<any>): Promise<boolean> {
-  const timeout = Promise.race([
-    promise.then(() => true, () => true),
-    new Promise(resolve => setTimeout(() => resolve(false), 0))
-  ]);
-  
-  return timeout as Promise<boolean>;
 }

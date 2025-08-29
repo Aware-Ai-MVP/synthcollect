@@ -98,6 +98,19 @@ export class ExportMetrics {
     this.failedFiles++;
   }
 
+  // PUBLIC GETTERS FOR ACCESSING METRICS
+  get processedCount(): number {
+    return this.processedFiles;
+  }
+
+  get failedCount(): number {
+    return this.failedFiles;
+  }
+
+  get totalCount(): number {
+    return this.totalFiles;
+  }
+
   private logProgress() {
     const elapsed = Date.now() - this.startTime;
     const rate = this.processedFiles / (elapsed / 1000);
